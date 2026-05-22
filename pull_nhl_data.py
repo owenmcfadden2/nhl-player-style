@@ -55,50 +55,82 @@ REPORTS = ["summary", "realtime"]
 # ---------------------------------------------------------------------------
 # CORE FETCH
 # ---------------------------------------------------------------------------
-def fetch_report(report, season, is_game):
+def get_team_ids(season):
     """
-    Pull ALL rows for one report table, one season.
+    Fetch the list of team IDs that played in a given season.
 
-    is_game=True  -> one row per player per GAME (high volume, for supervised set)
-    is_game=False -> one row per player per SEASON (aggregated, for clustering)
-
-    We paginate with start/limit because a season of player-games is ~24k rows
-    and we don't want to rely on limit=-1 silently truncating.
+    Why we need this: the stats API refuses to paginate past a ~10,000-row offset.
+    A full season of player-GAMES is ~24,000 rows, so a single season-wide query
+    silently stops at 10k. The fix is to slice the pull into chunks that each stay
+    under the ceiling. Slicing BY TEAM works perfectly: ~32 teams x ~750 player-games
+    each = well under 10k per chunk. We fetch team IDs dynamically so the list can't
+    go stale.
     """
-    rows = []
-    start = 0
-    # Sorting by playerId keeps pagination stable across requests.
-    sort = json.dumps([{"property": "playerId", "direction": "ASC"},
-                        {"property": "gameId" if is_game else "seasonId",
-                         "direction": "ASC"}])
+    # The 'team/summary' report lists every team with its id for the season.
+    url = "https://api.nhle.com/stats/rest/en/team/summary"
+    params = {
+        "isAggregate": "false",
+        "isGame": "false",
+        "sort": json.dumps([{"property": "teamId", "direction": "ASC"}]),
+        "start": "0",
+        "limit": "100",
+        "cayenneExp": f"gameTypeId={GAME_TYPE} and "
+                      f"seasonId<={season} and seasonId>={season}",
+    }
+    resp = requests.get(url, params=params, timeout=30)
+    resp.raise_for_status()
+    return [row["teamId"] for row in resp.json().get("data", [])]
 
+
+def _paginate(url, base_params):
+    """Page through a single filtered query 100 rows at a time until exhausted."""
+    rows, start = [], 0
     while True:
-        params = {
-            "isAggregate": "false",
-            "isGame": str(is_game).lower(),
-            "sort": sort,
-            "start": str(start),
-            "limit": str(PAGE_SIZE),
-            # cayenneExp is the API's filter language. Restrict to this season + game type.
-            "cayenneExp": f"gameTypeId={GAME_TYPE} and "
-                          f"seasonId<={season} and seasonId>={season}",
-        }
-        url = f"{STATS_BASE}/{report}"
+        params = dict(base_params, start=str(start), limit=str(PAGE_SIZE))
         resp = requests.get(url, params=params, timeout=30)
         resp.raise_for_status()
         batch = resp.json().get("data", [])
         rows.extend(batch)
         start += PAGE_SIZE
-        time.sleep(0.3)  # be polite to the API
-        # Proper end-of-data signal: a page that came back smaller than we asked
-        # for (or empty) means there's nothing left. This is what fixes the bug
-        # where the pull stopped at one page.
-        if len(batch) < PAGE_SIZE:
+        time.sleep(0.2)
+        if len(batch) < PAGE_SIZE:   # short page = no more data
             break
-        # Safety stop so a bug can't loop forever.
-        if start > 200000:
-            print("  WARNING: hit pagination safety cap")
+        if start > 9000:             # stay safely under the API's offset ceiling
             break
+    return rows
+
+
+def fetch_report(report, season, is_game):
+    """
+    Pull ALL rows for one report table, one season.
+
+    is_game=True  -> one row per player per GAME. Pulled team-by-team so each
+                     chunk stays under the API's 10k offset ceiling.
+    is_game=False -> one row per player per SEASON. Small (<1000 rows), one query.
+    """
+    url = f"{STATS_BASE}/{report}"
+    sort = json.dumps([{"property": "playerId", "direction": "ASC"},
+                       {"property": "gameId" if is_game else "seasonId",
+                        "direction": "ASC"}])
+    base = {
+        "isAggregate": "false",
+        "isGame": str(is_game).lower(),
+        "sort": sort,
+        "cayenneExp": f"gameTypeId={GAME_TYPE} and "
+                      f"seasonId<={season} and seasonId>={season}",
+    }
+
+    if not is_game:
+        # Season aggregates are small; one paginated query is enough.
+        rows = _paginate(url, base)
+    else:
+        # Player-games: slice by team to dodge the 10k ceiling.
+        rows = []
+        team_ids = get_team_ids(season)
+        for tid in team_ids:
+            team_base = dict(base)
+            team_base["cayenneExp"] = base["cayenneExp"] + f" and teamId={tid}"
+            rows.extend(_paginate(url, team_base))
 
     print(f"  {report} (is_game={is_game}, season={season}): {len(rows)} rows")
     return pd.DataFrame(rows)
