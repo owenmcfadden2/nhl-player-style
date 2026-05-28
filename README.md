@@ -70,16 +70,6 @@ writes the three result CSVs into `tables/`.
 | Enforcers         | 120 | 14.5 hits per 60 |
 | Fourth-line       | 55 | low offense |
 
-## Repository structure
-.
-├── pull_nhl_data.py       # NHL Stats API ingestion (team-by-team paginated)
-├── nhl_eda.ipynb          # EDA + feature engineering
-├── nhl_modeling.ipynb     # classification, ablation, clustering, case studies
-├── data/                  # raw pulls and processed datasets
-├── figures/               # plots used in the report
-├── tables/                # numeric result tables (CSV)
-└── report/                # compiled PDF write-up
-
 ## Notes
 
 The NHL Stats API is undocumented; the pull script paginates team-by-team to
