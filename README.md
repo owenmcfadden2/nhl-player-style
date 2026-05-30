@@ -3,85 +3,75 @@
 Discovering hockey player "styles" from on-ice statistics, and testing whether a
 player's statistical fingerprint alone can predict their listed position.
 
-This is a course project for **DSC 148: Introduction to Data Mining** (UC San Diego).
+Course project for **DSC 148: Introduction to Data Mining** (UC San Diego).
 
 ## Overview
 
-Hockey players are listed by position (center, wing, defense), but those labels
-describe where a player lines up, not necessarily how they *play*. This project
-asks two connected questions:
+This project asks two connected questions:
 
-1. **Unsupervised:** If we cluster skaters purely by their statistical fingerprint
-   (shots, hits, blocks, takeaways, giveaways, scoring rates), what natural
-   "styles" emerge? Do the discovered clusters line up with listed positions, or
-   cut across them?
-2. **Supervised:** Can we predict a skater's listed position from that fingerprint
-   alone? The players the model gets *wrong* are the interesting ones: skaters
-   whose statistical style doesn't match their position label.
+1. **Supervised:** Can a skater's listed position be predicted from per-60
+   counting statistics alone?
+2. **Unsupervised:** When forwards are clustered purely by their statistical
+   fingerprint, do recognizable "styles" emerge?
+
+**Headline findings:**
+- Forward vs. defense classification reaches ~97% accuracy. Logistic regression
+  outperforms gradient boosting, indicating the boundary is essentially linear.
+- The 4-class task (C/L/R/D) fails specifically on left vs. right wings,
+  revealing that wing designation is not a statistically distinct style.
+- Unsupervised K-Means on forward profiles recovers four interpretable
+  archetypes — stars, middle-six, fourth-liners, and enforcers — that map onto
+  recognizable NHL roles. The algorithm rediscovers role hierarchy without
+  access to any labels.
+- The model's "misclassifications" identify stylistic outliers: offensive
+  defensemen (e.g., Dougie Hamilton) and defensive forwards (e.g., Barclay
+  Goodrow) whose role diverges from their listed position.
+
+The full write-up is in `report/nhl_player_style.pdf`.
 
 ## Data
 
-Source: the public NHL Stats API (`api.nhle.com/stats/rest/en`), skater `summary`
+Source: public NHL Stats API (`api.nhle.com/stats/rest/en`), skater `summary`
 and `realtime` report tables.
 
-- **Unit of analysis:** one row per (player, game) for the supervised task; one row
-  per (player, season) aggregate for clustering.
-- **Volume:** ~24,000 skater-games per season; multiple seasons used to exceed
-  50,000 instances.
-- **Label:** `positionCode` (C / L / R / D), grouped to forward vs. defense or kept
-  fine-grained depending on the experiment.
+- **Volume:** ~94,000 skater-game records across the 2022-23 and 2023-24
+  regular seasons.
+- **Unit of analysis (supervised):** player-game records, 1,086 train / 357 test
+  after a grouped split by `playerId` to prevent leakage.
+- **Unit of analysis (clustering):** 1,443 player-season profiles after
+  filtering to players with at least 200 minutes of ice time.
+- **Features:** 11 per-60 rate statistics covering scoring (goals, assists,
+  shots) and defensive/physical play (blocks, hits, takeaways, giveaways).
 
 ## Reproduce
 
 ```bash
-pip install requests pandas
+pip install requests pandas scikit-learn matplotlib seaborn jupyter
 python pull_nhl_data.py
+jupyter notebook nhl_eda.ipynb         # builds player_fingerprints.csv
+jupyter notebook nhl_modeling.ipynb    # trains models, produces tables
 ```
 
-This writes two files:
+`pull_nhl_data.py` writes `data/player_games.csv` and `data/player_seasons.csv`.
+The EDA notebook writes `data/player_fingerprints.csv`. The modeling notebook
+writes the three result CSVs into `tables/`.
 
-- `data/player_games.csv` — supervised dataset (one row per player-game)
-- `data/player_seasons.csv` — clustering dataset (one row per player-season)
+## Results summary
 
-Edit the `SEASONS` list at the top of `pull_nhl_data.py` to change which seasons
-are pulled.
+| Task | Best Model | Accuracy | F1 |
+|------|------------|----------|-----|
+| Forward vs. defense | Logistic Regression | 0.966 | 0.974 |
+| 4-class (C/L/R/D)   | Logistic Regression | 0.700 | 0.571 (macro) |
 
-## Repository structure
-
-```
-.
-├── pull_nhl_data.py     # ingestion pipeline (NHL API -> CSVs)
-├── data/                # generated datasets
-├── notebooks/           # EDA, clustering, and modeling notebooks
-├── src/                 # reusable code factored out of notebooks
-├── figures/             # exported plots used in the report
-└── report/              # ACM-format write-up (PDF)
-```
-
-## Method
-
-*(filled in as the project develops)*
-
-- **Features:** per-60-minute rate stats so players are compared on style rather
-  than ice time.
-- **Clustering:** _TBD (K-Means / Gaussian Mixture)_, projected to 2D for
-  visualization.
-- **Prediction:** baselines (logistic regression, naive Bayes) vs. proposed model
-  (gradient boosting).
-- **Evaluation:** accuracy, F1 (classes are imbalanced), with an ablation over
-  feature groups.
-
-## Results
-
-*(to be added)*
-
-| Model | Accuracy | F1 |
-|-------|----------|-----|
-| Logistic Regression (baseline) | — | — |
-| Naive Bayes (baseline) | — | — |
-| Gradient Boosting (proposed) | — | — |
+| Forward archetype | n | Defining stat |
+|-------------------|----|---------------|
+| Middle-six        | 477 | balanced production |
+| Stars             | 283 | high shots/goals/assists |
+| Enforcers         | 120 | 14.5 hits per 60 |
+| Fourth-line       | 55 | low offense |
 
 ## Notes
 
-The NHL Stats API is undocumented; column names and behavior are inferred from
-community reference material and may change.
+The NHL Stats API is undocumented; the pull script paginates team-by-team to
+work around a ~10,000-row offset ceiling. Column names and behavior are
+inferred from community reference material and may change.
