@@ -1,0 +1,131 @@
+{
+  "feature_names": [
+    "goals_per60",
+    "assists_per60",
+    "points_per60",
+    "shots_per60",
+    "blockedShots_per60",
+    "hits_per60",
+    "takeaways_per60",
+    "giveaways_per60",
+    "penaltyMinutes_per60",
+    "missedShots_per60",
+    "totalShotAttempts_per60"
+  ],
+  "scaler_mean": [
+    0.8116504289840425,
+    1.0762295345194812,
+    1.887879963503524,
+    7.138239253787889,
+    2.108335597234814,
+    5.456488659623969,
+    1.6747731742678975,
+    1.4584151083353494,
+    2.080450951599471,
+    2.9192827681279803,
+    12.969027379293522
+  ],
+  "scaler_scale": [
+    0.39087883784104904,
+    0.5238302444667934,
+    0.7976328548536942,
+    2.0633939168453934,
+    0.951118553006047,
+    4.513672114860049,
+    0.5853788687316656,
+    0.6153799837983291,
+    2.156894504230009,
+    0.9690324383346349,
+    3.789671703466535
+  ],
+  "centroids": {
+    "Stars": [
+      1.3439981284655267,
+      1.1792815712653621,
+      1.4330951556602303,
+      1.3892453224652987,
+      -0.6567122435697901,
+      -0.5108771742523704,
+      0.3053757996765002,
+      0.8356314361332385,
+      -0.22825595974982177,
+      1.2046441413038935,
+      1.44613978867026
+    ],
+    "Fourth-line": [
+      -0.7510348170679529,
+      -0.6780353980571113,
+      -0.8133304199387296,
+      -0.8272103715994426,
+      0.599196926203596,
+      0.13401596458707954,
+      -0.18653080140578285,
+      -0.4631903173347018,
+      -0.17309051901261904,
+      -0.7171954035619247,
+      -0.8313105342535458
+    ],
+    "Enforcers": [
+      -0.7419587912901933,
+      -0.849450215969771,
+      -0.9214561560332044,
+      -0.6433856584112715,
+      0.5852475166154972,
+      2.409001794365538,
+      -0.6476694410947885,
+      -0.3750022146160727,
+      2.2868739124259205,
+      -0.4786495898346803,
+      -0.6180114880070583
+    ],
+    "Middle-six": [
+      0.13290368401811817,
+      0.1696052107135375,
+      0.17651426428583525,
+      0.15364011879024198,
+      -0.2899235206612242,
+      -0.33938366860499286,
+      0.13451226404820837,
+      0.0631301114484121,
+      -0.20083475953814797,
+      0.11795721404860084,
+      0.12664222367891648
+    ]
+  },
+  "representative_players": {
+    "Stars": [
+      "Nathan MacKinnon",
+      "Connor McDavid",
+      "Mikko Rantanen",
+      "Mikko Rantanen",
+      "Nikita Kucherov"
+    ],
+    "Middle-six": [
+      "Vincent Trocheck",
+      "Nick Suzuki",
+      "Nick Suzuki",
+      "Robert Thomas",
+      "J.T. Miller"
+    ],
+    "Enforcers": [
+      "Tom Wilson",
+      "Jack McBain",
+      "Tanner Jeannot",
+      "Garnet Hathaway",
+      "Nick Ritchie"
+    ],
+    "Fourth-line": [
+      "J.T. Compher",
+      "Alexander Wennberg",
+      "Phillip Danault",
+      "William Eklund",
+      "J.T. Compher"
+    ]
+  },
+  "descriptions": {
+    "Stars": "High-volume scorers and playmakers. Top of the lineup.",
+    "Middle-six": "Balanced two-way contributors. The most common forward role.",
+    "Enforcers": "Physical, hit-heavy players who provide an energy presence.",
+    "Fourth-line": "Low-event checking and defensive-zone specialists."
+  }
+}
