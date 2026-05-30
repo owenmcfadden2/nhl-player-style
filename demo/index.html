@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NHL Forward Archetype Finder</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 720px; margin: 2em auto; padding: 0 1em;
+    color: #222; line-height: 1.5;
+  }
+  h1 { margin-bottom: 0.2em; }
+  .subtitle { color: #666; margin-top: 0; margin-bottom: 1.5em; }
+  .inputs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em 1em;
+    margin-bottom: 1.5em;
+  }
+  .field { display: flex; flex-direction: column; }
+  .field label { font-size: 0.85em; color: #444; margin-bottom: 0.15em; }
+  .field input {
+    padding: 0.4em; font-size: 1em; border: 1px solid #ccc; border-radius: 4px;
+  }
+  .result {
+    border: 2px solid #1f77b4; border-radius: 8px;
+    padding: 1em 1.2em; background: #f5f9fc;
+  }
+  .archetype-name { font-size: 1.5em; font-weight: bold; color: #1f77b4; }
+  .description { margin: 0.5em 0; }
+  .similar { font-size: 0.95em; color: #444; }
+  .similar strong { color: #222; }
+  .distances {
+    margin-top: 1em; font-size: 0.85em; color: #666;
+  }
+  .distances div { margin: 0.2em 0; }
+  .bar {
+    display: inline-block; height: 0.6em; background: #1f77b4;
+    vertical-align: middle; margin-left: 0.5em; border-radius: 2px;
+  }
+  footer { margin-top: 2em; font-size: 0.85em; color: #888; }
+  footer a { color: #1f77b4; }
+</style>
+</head>
+<body>
+
+<h1>NHL Forward Archetype Finder</h1>
+<p class="subtitle">
+  Enter per-60-minute stats for a forward to find their statistical archetype.
+  Defaults are league-average values.
+</p>
+
+<div class="inputs" id="inputs"></div>
+
+<div class="result" id="result">
+  <div class="archetype-name" id="archetype">—</div>
+  <div class="description" id="description"></div>
+  <div class="similar"><strong>Similar players:</strong> <span id="similar"></span></div>
+  <div class="distances" id="distances"></div>
+</div>
+
+<footer>
+  Part of <a href="https://github.com/owenmcfadden2/nhl-player-style">NHL Player Style</a>,
+  a DSC 148 course project at UC San Diego.
+  The four archetypes were discovered by K-Means clustering, no position labels used.
+</footer>
+
+<script>
+// Friendly labels for the 11 features. Order must match feature_names in model.json.
+const FRIENDLY_LABELS = {
+  goals_per60: "Goals",
+  assists_per60: "Assists",
+  points_per60: "Points",
+  shots_per60: "Shots",
+  blockedShots_per60: "Blocked shots",
+  hits_per60: "Hits",
+  takeaways_per60: "Takeaways",
+  giveaways_per60: "Giveaways",
+  penaltyMinutes_per60: "Penalty minutes",
+  missedShots_per60: "Missed shots",
+  totalShotAttempts_per60: "Total shot attempts",
+};
+
+// Reasonable default values (league-average-ish for a forward).
+const DEFAULTS = {
+  goals_per60: 0.7, assists_per60: 1.0, points_per60: 1.7, shots_per60: 7.0,
+  blockedShots_per60: 2.0, hits_per60: 5.0, takeaways_per60: 1.5,
+  giveaways_per60: 1.5, penaltyMinutes_per60: 1.0, missedShots_per60: 2.0,
+  totalShotAttempts_per60: 11.0,
+};
+
+let model = null;
+
+async function loadModel() {
+  const resp = await fetch("model.json");
+  model = await resp.json();
+  buildInputs();
+  predict();
+}
+
+function buildInputs() {
+  const container = document.getElementById("inputs");
+  for (const feat of model.feature_names) {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    const label = document.createElement("label");
+    label.textContent = FRIENDLY_LABELS[feat] || feat;
+    label.htmlFor = feat;
+    const input = document.createElement("input");
+    input.type = "number"; input.step = "0.1"; input.id = feat;
+    input.value = DEFAULTS[feat] ?? 0;
+    input.addEventListener("input", predict);
+    wrap.appendChild(label); wrap.appendChild(input);
+    container.appendChild(wrap);
+  }
+}
+
+function predict() {
+  // Read the 11 inputs.
+  const raw = model.feature_names.map(f =>
+    parseFloat(document.getElementById(f).value) || 0
+  );
+  // Standardize using the scaler's mean and scale.
+  const scaled = raw.map((v, i) =>
+    (v - model.scaler_mean[i]) / model.scaler_scale[i]
+  );
+  // Euclidean distance to each centroid.
+  const distances = {};
+  for (const [name, centroid] of Object.entries(model.centroids)) {
+    let sumSq = 0;
+    for (let i = 0; i < centroid.length; i++) {
+      const d = scaled[i] - centroid[i];
+      sumSq += d * d;
+    }
+    distances[name] = Math.sqrt(sumSq);
+  }
+  // Pick the nearest archetype.
+  const sorted = Object.entries(distances).sort((a, b) => a[1] - b[1]);
+  const [bestName, bestDist] = sorted[0];
+  document.getElementById("archetype").textContent = bestName;
+  document.getElementById("description").textContent =
+    model.descriptions[bestName] || "";
+  document.getElementById("similar").textContent =
+    (model.representative_players[bestName] || []).join(", ");
+  // Distance bars (inverted: shorter distance = longer bar).
+  const maxDist = Math.max(...Object.values(distances));
+  const distDiv = document.getElementById("distances");
+  distDiv.innerHTML = "<strong>Distance to each archetype</strong> (shorter = closer match):<br>";
+  for (const [name, dist] of sorted) {
+    const barWidth = Math.max(5, 200 * (1 - dist / (maxDist * 1.1)));
+    const row = document.createElement("div");
+    row.innerHTML = `${name}: ${dist.toFixed(2)} <span class="bar" style="width:${barWidth}px"></span>`;
+    distDiv.appendChild(row);
+  }
+}
+
+loadModel();
+</script>
+
+</body>
+</html>
